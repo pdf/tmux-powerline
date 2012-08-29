@@ -62,6 +62,13 @@ load+=(["background"]="colour237")
 load+=(["separator"]="${separator_left_bold}")
 register_segment "load"
 
+declare -A temperature
+temperature+=(["script"]="${segments_path}/temperature.sh")
+temperature+=(["foreground"]="color0")
+temperature+=(["background"]="colour197")
+temperature+=(["separator"]="${separator_left_bold}")
+register_segment "temperature"
+
 declare -A battery
 if [ "$PLATFORM" == "mac" ]; then
 	battery+=(["script"]="${segments_path}/battery_mac.sh")
