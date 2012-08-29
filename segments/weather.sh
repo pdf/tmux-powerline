@@ -2,7 +2,7 @@
 # Prints the current weather in Celsius, Fahrenheits or lord Kelvins. The forecast is cached and updated with a period of $update_period.
 
 # You location. Find a string that works for you by Googling on "weather in <location-string>"
-location="Lund, Sweden"
+location="Lund"
 
 # Can be any of {c,f,k}.
 unit="c"
@@ -95,19 +95,19 @@ if [ -z "$degrees" ]; then
 		search_location=$(echo "$location" | sed -e 's/\s/%20/g')
 	fi
 
-	weather_data=$(curl --max-time 4 -s "http://www.google.com/ig/api?weather=${search_location}")
+	weather_data="$(curl --max-time 4 -s "http://openweathermap.org/data/2.0/find/name?q=${search_location}")"
 	if [ "$?" -eq "0" ]; then
-		error=$(echo "$weather_data" | grep "problem_cause\|DOCTYPE");
-		if [ -n "$error" ]; then
+		if [ -z "$(echo $weather_data|grep -i ${search_location})" ]; then
 			echo "error"
 			exit 1
 		fi
-		degrees=$(echo "$weather_data" | sed "s|.*<temp_${search_unit} data=\"\([^\"]*\)\"/>.*|\1|")
-		if [ "$PLATFORM" == "mac" ]; then
-			conditions=$(echo $weather_data | xpath //current_conditions/condition/@data 2> /dev/null | grep -oe '".*"' | sed "s/\"//g")
-		else
-			conditions=$(echo "$weather_data" | grep -PZo "<current_conditions>(\\n|.)*</current_conditions>" | grep -PZo "(?<=<condition\sdata=\")([^\"]*)")
-		fi
+		degrees="$(echo $weather_data|sed -e 's#^.*"main":{"temp":\([^,]*\),.*$#\1#g')"
+		conditions=''
+#		if [ "$PLATFORM" == "mac" ]; then
+#			conditions=$(echo $weather_data | xpath //current_conditions/condition/@data 2> /dev/null | grep -oe '".*"' | sed "s/\"//g")
+#		else
+#			conditions=$(echo "$weather_data" | grep -PZo "<current_conditions>(\\n|.)*</current_conditions>" | grep -PZo "(?<=<condition\sdata=\")([^\"]*)")
+#		fi
 		echo "$degrees" > $tmp_file
 		echo "$conditions" >> $tmp_file
 	elif [ -f "$tmp_file" ]; then
@@ -116,8 +116,10 @@ if [ -z "$degrees" ]; then
 fi
 
 if [ -n "$degrees" ]; then
-	if [ "$unit" == "k" ]; then
-		degrees=$(echo "${degrees} + 273.15" | bc)
+	if [ "$unit" == "c" ]; then
+		degrees=$(echo "${degrees} - 273.15" | bc)
+	elif [ "$unit" == "f" ]; then
+		degrees=$(echo "(${degrees} * 9 / 5) - 459.67" | bc)
 	fi
 	unit_upper=$(echo "$unit" | tr '[cfk]' '[CFK]')
 	condition_symbol=$(get_condition_symbol "$conditions")
