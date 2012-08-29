@@ -16,6 +16,7 @@ hg_colour="colour45"
 
 # Show git banch.
 parse_git_branch() {
+	[ `type -t __git_ps1` ] && return "$(__git_ps1 "(%s)")"
 	type git 2>&1 > /dev/null
 	if [ "$?" -ne 0 ]; then
 		return
