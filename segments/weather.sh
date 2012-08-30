@@ -1,8 +1,15 @@
 #!/bin/bash
 # Prints the current weather in Celsius, Fahrenheits or lord Kelvins. The forecast is cached and updated with a period of $update_period.
 
-# You location. Find a string that works for you by Googling on "weather in <location-string>"
-location="Lund"
+# Your location. You can specify the longitude and latitude, otherwise the location name will be resolved via openstreetmap.
+# The first result from openstreetmap will be used, feel free to enter your address for optimal mapping.
+# If in doubt, check that your location is the first match on http://openstreetmap.org
+location="Lund, Sweden"
+#latitude=55.7029296
+#longitude=13.1929449
+
+# In seconds
+#update_period=600
 
 # Can be any of {c,f,k}.
 unit="c"
@@ -74,7 +81,7 @@ if [ -f "$tmp_file" ]; then
 		last_update=$(stat -c "%Y" ${tmp_file})
 	fi
 	time_now=$(date +%s)
-	update_period=600
+	update_period=${update_period:-600}
 
 	up_to_date=$(echo "(${time_now}-${last_update}) < ${update_period}" | bc)
 	if [ "$up_to_date" -eq 1 ]; then
@@ -83,31 +90,26 @@ if [ -f "$tmp_file" ]; then
 fi
 
 if [ -z "$degrees" ]; then
-	if [ "$unit" == "k" ]; then
-		search_unit="c"
-	else
-		search_unit="$unit"
-	fi
 	# Convert spaces before using this in the URL.
-	if [ "$PLATFORM" == "mac" ]; then
-		search_location=$(echo "$location" | sed -e 's/[ ]/%20/g')
-	else
-		search_location=$(echo "$location" | sed -e 's/\s/%20/g')
+	if [ -z "$latitude" -o -z "$longitude" ]; then
+		if [ "$PLATFORM" == "mac" ]; then
+			search_location=$(echo "$location" | sed -e 's/[ ]/%20/g')
+		else
+			search_location=$(echo "$location" | sed -e 's/\s/%20/g')
+		fi
+		location_data="$(curl --max-time 4 -s "http://nominatim.openstreetmap.org/search?q=${search_location}&format=json")"
+		latitude="$(echo $location_data|sed -e 's#^.*"lat":"\([^"]*\)".*$#\1#g')"
+		longitude="$(echo $location_data|sed -e 's#^.*"lon":"\([^"]*\)".*$#\1#g')"
 	fi
 
-	weather_data="$(curl --max-time 4 -s "http://openweathermap.org/data/2.0/find/name?q=${search_location}")"
+	if [ -z "$latitude" -o -z "$longitude" ]; then
+		echo "error"
+		exit 1
+	fi
+	weather_data="$(curl --max-time 4 -s "http://openweathermap.org/data/2.0/find/station?lat=${latitude}&lon=${longitude}&cnt=15&cluster=true")"
 	if [ "$?" -eq "0" ]; then
-		if [ -z "$(echo $weather_data|grep -i ${search_location})" ]; then
-			echo "error"
-			exit 1
-		fi
 		degrees="$(echo $weather_data|sed -e 's#^.*"main":{"temp":\([^,]*\),.*$#\1#g')"
 		conditions=''
-#		if [ "$PLATFORM" == "mac" ]; then
-#			conditions=$(echo $weather_data | xpath //current_conditions/condition/@data 2> /dev/null | grep -oe '".*"' | sed "s/\"//g")
-#		else
-#			conditions=$(echo "$weather_data" | grep -PZo "<current_conditions>(\\n|.)*</current_conditions>" | grep -PZo "(?<=<condition\sdata=\")([^\"]*)")
-#		fi
 		echo "$degrees" > $tmp_file
 		echo "$conditions" >> $tmp_file
 	elif [ -f "$tmp_file" ]; then
